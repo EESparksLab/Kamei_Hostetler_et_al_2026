@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<METADATA>
+  <Tags>
+    <AcquisitionTime>2019-09-17T20:29:43.2340834Z</AcquisitionTime>
+    <DetectorState>&lt;CameraState Id=""&gt;
+  &lt;ApplyCameraProfile&gt;true&lt;/ApplyCameraProfile&gt;
+  &lt;ApplyImageOrientation&gt;true&lt;/ApplyImageOrientation&gt;
+  &lt;ExposureTime&gt;500000000&lt;/ExposureTime&gt;
+  &lt;Frame&gt;0,0,4248,2832&lt;/Frame&gt;
+  &lt;ImageOrientation&gt;1&lt;/ImageOrientation&gt;
+  &lt;CameraDisplayName&gt;Axiocam 512&lt;/CameraDisplayName&gt;
+&lt;/CameraState&gt;</DetectorState>
+    <FocusPosition>-000000148779.0000</FocusPosition>
+    <RoiCenterOffsetX>+000000000000.0000</RoiCenterOffsetX>
+    <RoiCenterOffsetY>+000000000000.0000</RoiCenterOffsetY>
+  </Tags>
+  <DataSchema />
+  <AttachmentSchema />
+</METADATA>
