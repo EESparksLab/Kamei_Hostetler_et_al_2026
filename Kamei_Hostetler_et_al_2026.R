@@ -14,6 +14,7 @@ library(pheatmap)
 library(purrr)
 library(rcompanion)
 library(stringr)
+library(tibble)
 library(tidyr)
 library(readr)
 R.version
@@ -25,7 +26,7 @@ setwd("~/Desktop/Kamei_Hostetler_et_al_2026//")
 getwd()
 
 # SBP transcription factors are candidate regulators of brace root initiation ####
-## FigureS1C ####
+## FigureS1B ####
 cat("\014")
 rm(list=ls()) 
 primordia <- read.csv("~/Desktop/Kamei_Hostetler_et_al_2026/Data/Phenotype/BR_primordia.csv")
@@ -63,7 +64,7 @@ plot_letters <- left_join( #combine hsd and position data frames
 plot_letters$node <- factor( 
   plot_letters$node,
   levels = c("1","2","3"))
-#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/FigureS1C.pdf", width=6, height=4)
+#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/FigureS1B.pdf", width=6, height=4)
 ggplot(primordia, aes(x = stage, y = BR_primordia, fill = node)) +
   geom_boxplot(alpha = 0.85, position = position_dodge(width = 0.75)) +
   geom_text(data = plot_letters, 
@@ -71,18 +72,18 @@ ggplot(primordia, aes(x = stage, y = BR_primordia, fill = node)) +
             position = position_dodge(width = 0.75), vjust = 0, size = 4) +
   scale_y_continuous(limits = c(0, 10), breaks = seq(0, 10, 1)) +
   scale_fill_manual(
-    values = c("pink4", "slategray3", "burlywood"),
+    values = c("#e5e5e5", "#5da5a0", "#333333"),
     breaks = c("3", "2", "1"),
     labels = c(
-      "3" = "3 - Highest Node (Induction Stage)",
-      "2" = "2 - Middle Node (Initiation Stage)",
-      "1" = "1 - Lowest Node (Emergence Stage)")) +
+      "3" = "3 - Highest Node",
+      "2" = "2 - Middle Node",
+      "1" = "1 - Lowest Node")) +
   labs(
     x = "Vegetative Leaf Stage",
     y = "Brace Root Primordia (count)",
-    fill = "Aboveground Node (BR Stage)") +
+    fill = "Aboveground Node") +
   theme_bw() +
-  theme(
+  theme(legend.position = "top",
     axis.text = element_text(size = 10),
     axis.title = element_text(face = "bold", size = 10),
     legend.title = element_text(face = "bold"))
@@ -225,7 +226,7 @@ pca_df$condition <- factor(
 #pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/FigS2.pdf", width=6, height=4)
 ggplot(pca_df, aes(PC1, PC2, color = condition)) +
   geom_point(size = 4) +
-  scale_color_manual(values = c("pink4", "slategray3", "burlywood"),
+  scale_color_manual(values = c("#e5e5e5", "#5da5a0", "#333333"),
                      breaks = c("No Primordia", "Primordia", "Emergence"),
                      labels = c(
                        "No Primordia" = "3 - Highest Node",
@@ -421,7 +422,7 @@ letters_df <- left_join(letters_df, positions, by = "Genotype") #Merge Tukey sig
 
 Figure2B = ggplot(data,aes(x = Genotype, y = Total_BR_Nodes_count)) +
   geom_boxplot(fill = "gray1", outliers = TRUE) +
-  labs(x = NULL, y = "Total BR Nodes (count)") +
+  labs(x = NULL, y = "BR Nodes (count)") +
   scale_y_continuous(limits = c(0, 10),breaks = seq(0, 10, by = 2))+
   geom_text(data = letters_df, aes(y = y + 1, label = Letters), size = 4) +
   theme_bw() +
@@ -522,7 +523,7 @@ letters_df <- left_join( #Join the letters data frame and the positions data fra
 
 Figure2C = ggplot(data_long,aes(x = Genotype, y = Total_BR_count, fill = Node)) +
   geom_boxplot(position = position_dodge(width = 0.75)) +
-  labs(x = NULL, y = "Total BR (count)") +
+  labs(x = NULL, y = "BR per node (count)") +
   scale_fill_manual(name = "Node",values = c("3" = "gray85","4" = "gray60"),
                     labels = c(
                       "3" = "Node 3",
@@ -712,29 +713,46 @@ colnames(pheno)[3] = "Tier2_count" #rename column 3
 data1 = merge(data, pheno, by = "ID")
 data1 = data1[,c(1,2,4,6)]
 colnames(data1)[2] = "Genotype"
-data1 = subset(data1, Genotype != "W22") #Remove W22 data because W22 lacks a Tier 2
 
-model <- lm(Tier2_count ~ pulvinus_cm, data = data1) #Fi a linear regression model to evaluate the relationship between pulvinus size and number of brace roots on tier 2
+model <- lm(Tier2_count ~ pulvinus_cm, data = data1) #Fit a linear regression model to evaluate the relationship between pulvinus size and number of brace roots on tier 2
 r2 <- summary(model)$r.squared #Extract the R2 value from model summary; R2 is the proportion of varitation in Tier2 brace root count by the size of pulvinus 
 r2
-###Figure 3B ####
-Figure3B = ggplot(data1, aes(x=pulvinus_cm, y = Tier2_count))+
-  geom_point(size = 2) +
+models <- data1 %>% # Fit a separate linear regression for each genotype
+  group_by(Genotype) %>%
+  group_modify(~ {
+    model <- lm(Tier2_count ~ pulvinus_cm, data = .x)
+    
+    data.frame(
+      r2 = summary(model)$r.squared,
+      slope = coef(model)[2],
+      intercept = coef(model)[1],
+      pvalue = coef(summary(model))[2, 4]
+    )
+  })
+
+models
+###Figure 3C ####
+Figure3C = ggplot(data1, aes(x=pulvinus_cm, y = Tier2_count, color = Genotype, shape = Genotype))+
+  geom_point(size = 2.5) +
   geom_smooth(method = "lm", se= FALSE)+
+  scale_color_manual(values = c("gray80", "gray70", "gray50","gray30", "gray0")) +
+  scale_shape_manual(values = c(16, 17, 15, 18, 8)) +
   labs(x = NULL, y = "Tier 2 BR (count)")+
   scale_y_continuous(limits = c(0, 15),breaks = seq(0, 15, by = 2))+
+  scale_x_continuous(limits = c(0, 1.6),breaks = seq(0, 1.6, by = .2))+
   theme_bw() +
-  theme(
-        axis.text.x = element_blank(),
-        #axis.text.x = element_text(size=10),
-        axis.text.y = element_text(size=10),
-        axis.text = element_text(size=10),
-        axis.title = element_text(face="bold", size=10),
-        axis.title.x = element_text(face="bold", size=10),
-        axis.title.y = element_text(face="bold", size=10))
-Figure3B
+  theme(legend.position = "none",
+    #axis.text.x = element_blank(),
+    axis.text.x = element_text(size=10),
+    axis.text.y = element_text(size=10),
+    axis.text = element_text(size=10),
+    axis.title = element_text(face="bold", size=10),
+    axis.title.x = element_text(face="bold", size=10),
+    axis.title.y = element_text(face="bold", size=10))
+Figure3C
 
-###Figure 3A ####
+
+###Figure 3B ####
 attach(data)
 lm <- lm(pulvinus_cm ~ Genotype) #Generate a linear model to test whether mean pulvinus height differs among genotypes
 anova(lm) #convert linear model to an ANOVA object 
@@ -755,9 +773,9 @@ positions <- data %>%
   group_by(Genotype) %>%
   summarize(y = max(pulvinus_cm, na.rm = TRUE))
 letters_df <- left_join(letters_df, positions, by = "Genotype")
-Figure3A = ggplot(data, aes(x = Genotype, y = pulvinus_cm)) +
+Figure3B = ggplot(data, aes(x = Genotype, y = pulvinus_cm)) +
   geom_boxplot() +
-  labs(x = NULL, y = "Pulvinus Thickness (cm)") +
+  labs(x = NULL, y = "Pulvinus Length (cm)") +
   scale_y_continuous(limits = c(0, NA))+
   geom_text(data = letters_df, aes(y = y+0.1, label = Letters), size = 4) +
   theme_bw() +
@@ -769,16 +787,16 @@ Figure3A = ggplot(data, aes(x = Genotype, y = pulvinus_cm)) +
     axis.title = element_text(face="bold", size=10),
     axis.title.x = element_text(face="bold", size=10),
     axis.title.y = element_text(face="bold", size=10))
-Figure3A
 Figure3B
+Figure3C
 
 #pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/Figure3.pdf", width=6, height=4)
 ggdraw() +
-  draw_plot(Figure3A, x = 0, y = 0, width = 0.5, height = 0.5) +
-  draw_plot(Figure3B, x = 0.5, y = 0, width = 0.5, height = 0.5)
+  draw_plot(Figure3B, x = 0, y = 0.5, width = 0.5, height = 0.5) +
+  draw_plot(Figure3C, x = 0, y = 0, width = 0.5, height = 0.5)
 #dev.off()
 
-#SBP regulatory networks during brace root initiation are distinct from those during ear development ####
+#SBP regulatory networks during brace root initiation are distinct from DNA binding targets in immature ears ####
 ## Table S5 ####
 rm(list = setdiff(ls(), c()))
 cat("\014")
@@ -1122,8 +1140,252 @@ TableS10 %>%
 #write.csv(TableS10, file = "Manuscript/TableS12.csv", row.names = FALSE)
 
 
-#SBP TFs inhibit brace root initiation by inhibiting cell division by limiting ethylene####
+#SBP TFs limit brace root initiation by inhibiting liguleless2####
 ## Figure 4 ####
+cat("\014")
+rm(list=ls()) 
+Initiation_Candidates <- read.csv("Data/DE_results/B73_V6/P_vs_NP_results.csv")
+Emergence_Candidates <- read.csv("Data/DE_results/B73_V6/E_vs_P_results.csv")
+lg <- bind_rows( #combine initation and emergence candidate gene datasets
+  Initiation_Candidates,
+  Emergence_Candidates) %>%
+  dplyr::select( #Select Geneid, locus_symbol, and any column that is normalized expression
+    Geneid,
+    locus_symbol,
+    ends_with("_norm")) %>%
+  filter( #only retain lg1 and lg2 
+    Geneid %in% c("Zm00001eb067740",
+                  "Zm00001eb147220")) %>%
+  distinct(Geneid, .keep_all = TRUE)
+lg_long <- lg %>% #Reshape dataframe from wide to long format
+  pivot_longer(
+    cols = ends_with("_norm"),
+    names_to = "Sample",
+    values_to = "NormalizedCount") %>%
+  mutate( #Create developmental stage and gene variables
+    Stage = case_when(
+      grepl("^No.primordia", Sample) ~ "No Primordia",
+      grepl("^Primordia", Sample) ~ "Primordia",
+      grepl("^Emergence", Sample) ~ "Emerging"),
+    Stage = factor(
+      Stage,
+      levels = c("No Primordia", "Primordia", "Emerging")),
+    Gene = factor(
+      locus_symbol,
+      levels = c("lg1", "lg2")))
+###Figure 4A ####
+Figure4A = ggplot(lg_long, aes(x = Stage, y = NormalizedCount, fill = Gene)) +
+  geom_boxplot()+
+  expand_limits(y = 0, x=0)+
+  labs(x = "Genotype", y = "DESeq2-normalized counts", fill = "Gene")+
+  scale_fill_manual(values = c("gray80", "gray20"))+
+  theme_bw()+
+  theme(legend.position = "none",
+        axis.text.x = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text = element_text(size=10),
+        axis.title = element_text(face="bold", size=10),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face="bold", size=10))
+Figure4A
+### Figure 4B ####
+path = "~/Desktop/Kamei_Hostetler_et_al_2026/Data/DE_results/MutantResults/" #Define directory containing DE results
+files = list.files( #Identify CSV files containing DE results for comparison 
+  path = path,
+  pattern = "W22_S[12]_all_genes\\.csv$",
+  full.names = TRUE)
+lg = map_dfr(files, function(file) { # Import files, add comparison, and combine
+  read.csv(file) %>% #Read each CSV file and add a column identifying the comparison
+    mutate(
+      Comparison = str_remove(basename(file), "_all_genes\\.csv$") #Extract comparison name from filename by removing the suffix
+    )}) %>%
+  filter( #Retain only lg1 and lg2 based on B73 v5 gene identifiers
+    B73_v5 %in% c("Zm00001eb067740", "Zm00001eb147220")) %>%
+  dplyr::select( #Retain the following columns
+    Comparison, #Mutant vs. WT comparison and stampling stage
+    B73_v5, #B73 V5 Gene ID
+    log2FoldChange, #Log2FC in expression relative to WT
+    pvalue, #Unadjusted DE p-value
+    padj) #Multiple testing adjusted pvalue
+lg <- lg %>%  #Add a column identifying lg1 and lg2 from gene annotation
+  mutate(
+    Gene = case_when(
+      B73_v5 == "Zm00001eb067740" ~ "lg1",
+      B73_v5 == "Zm00001eb147220" ~ "lg2"))
+lg$pvalue <- format(lg$pvalue , scientific = FALSE, trim = TRUE) #remove scientific notation
+lg$padj <- format(lg$padj , scientific = FALSE, trim = TRUE) #remove scientific notation
+FC <- lg %>% #Reshape DE results into a log2FC matrix
+  dplyr::select(Gene, Comparison, log2FoldChange) %>% #Retain gene ID, comparison, and log2FC values
+  pivot_wider( #convert from long to wide (each row represents a gene and each column is a comparison)
+    names_from = Comparison, #Use comparison names as column headers
+    values_from = log2FoldChange) %>% #Populate columns with log2FC values
+  column_to_rownames("Gene") %>% #Set gene names as row names and remove the gene column
+  as.matrix() #convert to a matrix for heatmap visualization 
+
+FC <- FC[, c( # Order comparisons
+  "tsh4_vs_W22_S1",
+  "tsh4_vs_W22_S2",
+  "ub2ub3_vs_W22_S1",
+  "ub2ub3_vs_W22_S2")]
+
+max_abs_fc <- max(abs(FC), na.rm = TRUE) # Determine the absolute value FC across all comparisons to establish a symmetriccolor scale centered around 0
+breaks <- seq(-max_abs_fc, max_abs_fc, length.out = 101) #Generate 101 evenly spaced breakpoints from the negative to positive max absolute FC for consistent color scaling
+FC <- FC[c("lg2", "lg1"), , drop = FALSE] # Order rows to display lg2 before lg1
+Figure4B = pheatmap(
+  mat = FC,
+  scale = "none",
+  color = colorRampPalette(
+    c("white", "grey70", "grey15"))(100),
+  breaks = breaks,
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  fontsize_row = 12,
+  fontsize_col = 12,
+  angle_col = 45,
+  cellwidth = 55,
+  cellheight = 35,
+  labels_col = c(
+    "tsh4 T1",
+    "tsh4 T2",
+    "ub2;ub3 T1",
+    "ub2;ub3 T2"),
+  display_numbers = TRUE,
+  number_format = "%.2f",
+  legend_breaks = c(-max_abs_fc, 0, max_abs_fc),
+  legend_labels = c("Low", "0", "High"),
+  number_color = "white",
+  border_color = NA,
+  legend = FALSE,
+  silent = TRUE)
+Figure4B_plot <- ggdraw() +
+  draw_grob(Figure4B$gtable)
+Figure4B_plot
+### Figure 4C ####
+cat("\014")
+data = read.csv("Data/Phenotype/2022_Field_lg1lg2.csv", header = TRUE, na.strings = "NA")
+data <- data %>% #Rename observations
+  mutate(
+    Genotype = dplyr::recode( 
+      Genotype,
+      "N" = "WT",
+      "lg1/lg2" = "lg1;lg2"))
+data$Genotype <- factor( # Set genotype order
+  data$Genotype,
+  levels = c( "WT", "lg1", "lg2", "lg1;lg2"))
+mod <- lm(WhorlCount ~ Genotype, data = data) # Run a linear model to test the effect of genotype on brace root node number
+hsd <- HSD.test(mod, "Genotype", group = TRUE) # Run TukeyHSD post hoc test to compare genotype 
+letters_df <- data.frame( #Extract significant group letters for each genotype
+  Genotype = rownames(hsd$groups), #genotype names
+  Letters = hsd$groups$groups) #TukeyHSD group letters
+letter_pos <- data %>% # Calculate positions for letters for plotting
+  group_by(Genotype) %>%
+  summarise(y = max(WhorlCount, na.rm = TRUE) + 1) #position above maximum observed value
+letters_df <- left_join(letters_df, letter_pos, by = "Genotype") # Merge letters with positions
+Figure4C = ggplot(data, aes(x = Genotype, y = WhorlCount, fill = Genotype)) +
+  geom_boxplot()+
+  scale_fill_manual(values = c("gray100", "gray80", "gray20", "gray0"))+
+  geom_text(
+    data = letters_df,aes(x = Genotype, y = y, label = Letters), inherit.aes = FALSE, size = 4) +
+  expand_limits(y = 0, x=0)+
+  labs(
+    x = "Genotype",
+    y = "BR Node (count)")+
+  theme_bw()+
+  theme(legend.position = "none",
+    axis.text.x = element_text(size=10),
+    axis.text.y = element_text(size=10),
+    axis.text = element_text(size=10),
+    axis.title = element_text(face="bold", size=10),
+    #axis.title.x = element_text(face="bold", size=10),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(face="bold", size=10))
+Figure4C
+
+### Figure 4D #####
+cat("\014")
+data = read.csv("Data/Phenotype/2026_GH_lg2.csv", header = TRUE, na.strings = "NA")
+data <- data %>%
+  mutate(across(where(is.character), trimws)) %>% #Remove extra white spaces and missing values
+  mutate(across(where(is.character), ~ na_if(.x, ""))) %>%
+  drop_na()
+data <- data %>% #Calculate the number of aboveground nodes with emerged brace rotos
+  mutate(NodeCount = case_when( #In the column called NodeCount
+    X4th.node > 0 ~ 4, #If there is a value greater than 0 at the 4th node, then put a 4
+    X3rd.node > 0 ~ 3, #If there is a value greater than 0 at the 3rd node, then put a 3
+    X2nd.node > 0 ~ 2, #If there is a value greater than 0 at the 2nd node, then put a 2
+    X1st.node > 0 ~ 1, #If there is a value greater than 0 at the 1st node, then put a 1
+    TRUE ~ 0))
+data_long <- data %>%
+  pivot_longer( #Reshape data from wide to long
+    cols = c(X1st.node, X2nd.node, X3rd.node, X4th.node), #Select the columns with brace root count at each node
+    names_to = "NodeNumber", #Use that column as the value in a new column called "Node Number"
+    values_to = "RootCount") %>% #Put the values in a column called "Root Count"
+  mutate(  #Define node number as an ordered factor for plotting 
+    NodeNumber = factor(
+      NodeNumber,
+      levels = c("X1st.node", "X2nd.node", "X3rd.node", "X4th.node"),
+      labels = c("1", "2", "3", "4"))) 
+data_long <- data_long %>% #Rename column called Phenotype to Genotype 
+  mutate(
+    Genotype = dplyr::recode( 
+      Phenotype,
+      "WT-B73" = "WT", #Change WT-B73 to WT
+      "lg2-R (mt)" = "lg2")) #Change lg2-R (mt) to lg2
+data_long$Genotype <- factor( # Set genotype order
+  data_long$Genotype,
+  levels = c( "WT", "lg2"))
+attach(data_long)
+head(data_long)
+lm <- lm(RootCount ~ Genotype*NodeNumber) #Generate a linear model to test whether root count differs among genotypes and node number
+anova(lm) #convert linear model to an ANOVA object 
+lm_aov=aov(lm) 
+resid = residuals(object = lm_aov) #extract residuals 
+shapiro.test(x=resid) #test whether residuals are normally distributed 
+tuk <- TukeyHSD(lm_aov) #Perform a Tukey HSD test to compare all comparisons pairs while controlling for multiple comparisons
+tuk_df <- as.data.frame(tuk$NodeNumber) 
+tuk_df$comparison <- rownames(tuk_df) #Move genotype comparisons from row names to a separte column 
+tuk_letters <- multcompLetters4(lm_aov, tuk) #Generate compact letter displays from Tukey HSD results
+letters_df <- data.frame( 
+  NodeNumber = names(tuk_letters$NodeNumber$Letters),
+  Letters = tuk_letters$NodeNumber$Letters)
+detach(data_long)
+positions <- data_long %>% #Calculate position for annotations above node
+  group_by(NodeNumber) %>% #Group observations by node number 
+  summarize(y = max(RootCount, na.rm = TRUE)) #identify the maximum brace root count for each node
+letters_df <- left_join(letters_df, positions, by = "NodeNumber")
+Figure4D = ggplot(data_long, aes(x = NodeNumber, y = RootCount, fill = Genotype)) +
+  geom_boxplot()+
+  expand_limits(y = 0, x=0)+
+  labs(x = "Aboveground Node", y = "BR Number (count)", fill = "Genotype")+
+  scale_fill_manual(values = c("gray100", "gray20"))+
+  geom_text(
+    data = letters_df,
+    aes(x = NodeNumber, y = y + 0.5, label = Letters),
+    inherit.aes = FALSE,
+    size = 4)+
+  theme_bw()+
+  theme(legend.position = "none",
+        axis.text.x = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text = element_text(size=10),
+        axis.title = element_text(face="bold", size=10),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face="bold", size=10))
+Figure4D
+#pdf(file="/Users/ashley/Desktop/Figure4.pdf", width=6, height=4)
+ggdraw() +
+  draw_plot(Figure4A, x = 0, y = 0.5, width = 0.5, height = 0.5) +
+  draw_plot(Figure4B_plot, x = 0.5, y = 0.5, width = 0.5, height = 0.5) +
+  draw_plot(Figure4C, x = 0, y = 0, width = 0.5, height = 0.5) +
+  draw_plot(Figure4D, x = 0.50, y = 0, width = 0.5, height = 0.5) +
+  draw_plot_label(label = c("A", "B", "C", "D"), 
+                  size = 12,
+                  x = c(0,0.5,0,0.5), 
+                  y = c(1,1,0.55,0.55))
+#dev.off()
+
+#SBP TFs inhibit brace root initiation through downstream regulation of ACC ####
+## Figure 5 ####
 cat("\014")
 rm(list=ls()) 
 setwd("~/Desktop/Kamei_Hostetler_et_al_2026/Data/Phenotype/")
@@ -1174,7 +1436,7 @@ letters_df <- left_join( #Merge letter information and position information into
   by = c("Hormone",
          "Genotype" = "Genotype.1")
 )
-#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/Figure4.pdf", width=6, height=4)
+#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/Figure5.pdf", width=6, height=4)
 ggplot(data_long,aes(x = Genotype.1,y = Value)) +
   geom_boxplot() +
   geom_text(data = letters_df,aes(x = Genotype,y = y,label = Letters),inherit.aes = FALSE,size = 4) +
@@ -1191,7 +1453,7 @@ ggplot(data_long,aes(x = Genotype.1,y = Value)) +
         axis.title.y = element_text(face="bold", size=10))
 #dev.off()
 
-#Gibberellin promotes brace root growth after initiation####
+#Gibberellin promotes brace root growth after initiation ####
 ## Table S13 ####
 cat("\014")
 rm(list=ls()) 
@@ -1364,7 +1626,7 @@ table(ifelse(data$log2FoldChange > 0, "Upregulated", "Downregulated")) #Regulati
 X = unique(data$B73_v5) #Number of DEGs shared between tsh4/ub2ub3S1 + initiation 
 #write.csv(data, file = "Manuscript/TableS13.csv", row.names = FALSE)
 
-##Fig 5A ####
+##Fig 6A ####
 cat("\014")
 rm(list=ls()) 
 data = read.csv("Data/Phenotype/2023_FieldDataBRPhenos.csv", header = TRUE, na.strings = "NA")
@@ -1422,7 +1684,7 @@ positions <- data %>%
   summarize(y = max(Average_BR_Diameter, na.rm = TRUE))
 letters_df <- left_join(letters_df, positions, by = "Genotype")
 
-Figure5A = ggplot(data, aes(x = Genotype, y = Average_BR_Diameter)) +
+Figure6A = ggplot(data, aes(x = Genotype, y = Average_BR_Diameter)) +
   geom_boxplot() +
   labs(x = NULL, y = "BR Diameter (mm)") +
   scale_y_continuous(limits = c(0, NA))+
@@ -1435,7 +1697,7 @@ Figure5A = ggplot(data, aes(x = Genotype, y = Average_BR_Diameter)) +
     axis.title = element_text(face="bold", size=10),
     axis.title.x = element_text(face="bold", size=10),
     axis.title.y = element_text(face="bold", size=10))
-Figure5A
+Figure6A
 data_long <- data %>%
   pivot_longer(
     cols = c(Number_BR_W2, Number_BR_W3),
@@ -1465,7 +1727,7 @@ positions <- data_long %>%
   summarize(y = max(BR_count, na.rm = TRUE))
 letters_df <- left_join(letters_df, positions, by = "Genotype")
 data_long = as.data.frame(data_long)
-Figure5B = ggplot(data_long, aes(x = Genotype, y = BR_count)) +
+Figure6B = ggplot(data_long, aes(x = Genotype, y = BR_count)) +
   geom_boxplot() +
   labs(x = NULL, y = "BRs per Node (count)") +
   scale_y_continuous(limits = c(0, NA))+
@@ -1478,11 +1740,11 @@ Figure5B = ggplot(data_long, aes(x = Genotype, y = BR_count)) +
     axis.title = element_text(face="bold", size=10),
     axis.title.x = element_text(face="bold", size=10),
     axis.title.y = element_text(face="bold", size=10))
-Figure5B
-#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/Figure5.pdf", width=6, height=4)
+Figure6B
+#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/Figure6.pdf", width=6, height=4)
 ggdraw() +
-  draw_plot(Figure5A, x = 0, y = 0, width = 0.33, height = 0.5) +
-  draw_plot(Figure5B, x = 0.33, y = 0, width = 0.33, height = 0.5) +
+  draw_plot(Figure6A, x = 0, y = 0, width = 0.33, height = 0.5) +
+  draw_plot(Figure6B, x = 0.33, y = 0, width = 0.33, height = 0.5) +
   draw_plot_label(label = c("A", "B", "C"), 
                   size = 12,
                   x = c(0, 0.33, 0.66), 
@@ -1685,8 +1947,6 @@ Y = HSD.test(lm_x2_aov2, trt = c("Genotype"), console = TRUE)
 Groups = Y$groups
 data$tukey = NULL
 detach(data)
-
-
 groups_df = data.frame( #Extract HSD Results 
   Genotype = rownames(X$groups),
   HSD_group = X$groups$groups,
@@ -1700,7 +1960,6 @@ order_levels <- groups_df %>% #order genotypes based on the mean stalk width
   arrange(desc(mean_stalk)) %>%
   pull(Genotype)
 data2$Genotype = factor(data2$Genotype, levels = order_levels)
-head(data2)
 summary_df = data2 %>% #Calculate the means talk width, root width, and number of roots for each geno
   group_by(Genotype, HSD_group) %>%
   summarise(
@@ -1710,7 +1969,6 @@ summary_df = data2 %>% #Calculate the means talk width, root width, and number o
     n = n()
   ) %>%
   ungroup()
-summary_df
 #pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/FigS7.pdf", width=8, height=6)
 ggplot(summary_df, aes(x = mean_w1, y = mean_root_w, color = HSD_group, label = Genotype)) +
   geom_point(size = 3) +
@@ -1732,7 +1990,7 @@ ggplot(summary_df, aes(x = mean_w1, y = mean_root_w, color = HSD_group, label = 
 
 #dev.off()
 
-##Fig 6B ####
+##Fig 7B ####
 df2 <- data %>% #Select only CML333 and PHHB4 into a new data frame
   filter(Genotype %in% c("CML333", "PHHB4"))
 rm(list = setdiff(ls(), c("df2")))
@@ -1759,7 +2017,7 @@ colnames(data1)[3] = "BraceRootNumber_W2"
 unique(df2$Genotype)
 head(df2)
 df2$Genotype <- factor(df2$Genotype, levels = c("PHHB4", "CML333"))
-Fig6B = ggplot(df2, aes(x = w1, y = RootWidth_mm, shape = Genotype, color = Genotype)) +
+Fig7B = ggplot(df2, aes(x = w1, y = RootWidth_mm, shape = Genotype, color = Genotype)) +
   geom_point(size = 3) +
   scale_shape_manual(values = c("PHHB4" = 16, "CML333" = 17))+
   scale_color_manual(values = c("gray1","gray70"))+
@@ -1778,10 +2036,10 @@ Fig6B = ggplot(df2, aes(x = w1, y = RootWidth_mm, shape = Genotype, color = Geno
         #axis.title.x = element_text(face="bold", size=10),
         axis.title.x= element_blank(),
         axis.title.y = element_text(face="bold", size=10))
-Fig6B
-##Fig 6A####
+Fig7B
+##Fig 7A####
 data1$Genotype <- factor(data1$Genotype, levels = c("tsh4", "ub2;ub3"))
-Fig6A = ggplot(data1, aes(x = BraceRootNumber_W2, y = RootWidth_W2_mm, shape = Genotype, color = Genotype)) +
+Fig7A = ggplot(data1, aes(x = BraceRootNumber_W2, y = RootWidth_W2_mm, shape = Genotype, color = Genotype)) +
   geom_point(size = 3) +
   scale_shape_manual(values = c("tsh4" = 15, "ub2;ub3" = 8))+
   scale_color_manual(values = c("gray1","gray70"))+
@@ -1801,11 +2059,11 @@ Fig6A = ggplot(data1, aes(x = BraceRootNumber_W2, y = RootWidth_W2_mm, shape = G
         axis.title.x= element_blank(),
         axis.title.y = element_text(face="bold", size=10))
 
-Fig6A
+Fig7A
 
-##Fig 6C ####
+##Fig 7C ####
 cat("\014")
-rm(list = setdiff(ls(), c("Fig6A","Fig6B")))
+rm(list = setdiff(ls(), c("Fig7A","Fig7B")))
 dat <- read.csv("Data/qPCR_SBP_CML333&PHHB4.csv")
 unique(dat$Sample.Name)
 
@@ -1856,7 +2114,7 @@ summary_table <- df1 %>%
 
 (1.20 - 0.814)/0.814
 
-Fig6C = ggplot(df1, aes(x = Genotype, y = UB3_TSH4_ratio)) +
+Fig7C = ggplot(df1, aes(x = Genotype, y = UB3_TSH4_ratio)) +
   geom_boxplot() +
   geom_hline(yintercept = 1, linetype = "dashed") +
   annotate( # TSH4-enriched region
@@ -1886,11 +2144,11 @@ Fig6C = ggplot(df1, aes(x = Genotype, y = UB3_TSH4_ratio)) +
         #axis.title.x = element_text(face="bold", size=10),
         axis.title.x= element_blank(),
         axis.title.y = element_text(face="bold", size=10))
-#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/Figure6.pdf", width=6, height=4)
+#pdf(file="/Users/ashley/Desktop/Kamei_Hostetler_et_al_2026/Manuscript/Figure7.pdf", width=6, height=4)
 ggdraw() +
-  draw_plot(Fig6A, x = 0, y = 0, width = 0.33, height = 0.5) +
-  draw_plot(Fig6B, x = 0.33, y = 0, width = 0.33, height = 0.5) +
-  draw_plot(Fig6C, x = 0.66, y = 0, width = 0.33, height = 0.5)+
+  draw_plot(Fig7A, x = 0, y = 0, width = 0.33, height = 0.5) +
+  draw_plot(Fig7B, x = 0.33, y = 0, width = 0.33, height = 0.5) +
+  draw_plot(Fig7C, x = 0.66, y = 0, width = 0.33, height = 0.5)+
   draw_plot_label(label = c("A", "B", "C"), 
                   size = 12,
                   x = c(0,0.33,0.66), 
